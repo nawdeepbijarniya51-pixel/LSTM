@@ -715,7 +715,7 @@ const API_BASE = (function () {
   if (params.get('api')) {
     localStorage.setItem('lstm_api_base', params.get('api'));
   }
-  return localStorage.getItem('lstm_api_base') || 'http://localhost:8000';
+  return localStorage.getItem('lstm_api_base') || 'https://lstm-f6q3.onrender.com';
 })();
 
 document.getElementById('apiBaseDisplay').textContent = API_BASE;
