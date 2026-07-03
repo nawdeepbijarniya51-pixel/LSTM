@@ -58,7 +58,7 @@ app = FastAPI(title="LSTM Next-Word Predictor API")
 # Tighten allow_origins to your real frontend URL before going to production.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[" https://nawdeepbijarniya51-pixel.github.io/LSTM/"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
