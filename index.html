@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LSTM Lab — Next-Word Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-void: #0b0806;
+    --bg-panel: #16110c;
+    --bg-card: #1d1610;
+    --bg-card-hover: #251c14;
+    --bg-input: #120d09;
+    --accent-gold: #d9ab52;
+    --accent-gold-dim: #8a713d;
+    --accent-ember: #e07a42;
+    --text-primary: #f3e9d8;
+    --text-secondary: #b8a98e;
+    --text-muted: #766a58;
+    --border-subtle: #2e2519;
+    --border-strong: #453723;
+    --ok: #7fae6f;
+    --warn: #d9825a;
+    --danger: #c2593f;
+    --radius-lg: 18px;
+    --radius-md: 12px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-void);
+    color: var(--text-primary);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(217, 171, 82, 0.10), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 100% 0%, rgba(224, 122, 66, 0.08), transparent 55%),
+      var(--bg-void);
+  }
+
+  ::selection { background: var(--accent-gold); color: #1a1208; }
+
+  a { color: var(--accent-gold); }
+
+  .wrap {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  /* ---------- Header ---------- */
+  header.hero {
+    margin-bottom: 40px;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-gold-dim);
+    border: 1px solid var(--border-strong);
+    padding: 5px 12px;
+    border-radius: 999px;
+    margin-bottom: 20px;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: background 0.3s ease;
+    box-shadow: 0 0 0 0 rgba(0,0,0,0);
+  }
+  .status-dot.ok { background: var(--ok); box-shadow: 0 0 8px 1px rgba(127,174,111,0.6); }
+  .status-dot.warn { background: var(--warn); box-shadow: 0 0 8px 1px rgba(217,130,90,0.6); }
+  .status-dot.bad { background: var(--danger); box-shadow: 0 0 8px 1px rgba(194,89,63,0.6); }
+
+  h1.title {
+    font-family: 'Fraunces', serif;
+    font-optical-sizing: auto;
+    font-weight: 600;
+    font-size: clamp(32px, 5vw, 46px);
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    margin: 0 0 14px;
+    color: var(--text-primary);
+  }
+  h1.title em {
+    font-style: italic;
+    font-weight: 500;
+    color: var(--accent-gold);
+  }
+
+  p.lede {
+    font-size: 15.5px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    max-width: 580px;
+    margin: 0;
+  }
+
+  .honesty-note {
+    margin-top: 16px;
+    max-width: 580px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-left: 2px solid var(--accent-gold-dim);
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+  }
+  .honesty-note b { color: var(--text-secondary); font-weight: 600; }
+
+  .specs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 22px;
+  }
+  .spec-chip {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+  }
+  .spec-chip b { color: var(--text-secondary); font-weight: 500; }
+
+  /* ---------- Tabs ---------- */
+  .tabs {
+    display: flex;
+    gap: 6px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 5px;
+    margin-bottom: 24px;
+  }
+  .tab-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .tab-btn:hover { color: var(--text-secondary); }
+  .tab-btn.active {
+    background: var(--bg-card);
+    color: var(--accent-gold);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+
+  .panel { display: none; }
+  .panel.active { display: block; animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ---------- Card ---------- */
+  .card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    margin-bottom: 20px;
+  }
+
+  label.field-label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  textarea, input[type="text"] {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 15px;
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+    outline: none;
+    transition: border-color 0.2s ease;
+    resize: none;
+  }
+  textarea:focus, input[type="text"]:focus {
+    border-color: var(--accent-gold-dim);
+  }
+
+  .row { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
+  .row .control { flex: 1; min-width: 180px; }
+
+  .slider-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+  .slider-label span.val {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--accent-gold);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--border-strong);
+    border-radius: 999px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-gold);
+    cursor: pointer;
+    box-shadow: 0 0 0 4px rgba(217,171,82,0.15);
+    transition: box-shadow 0.15s ease;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { box-shadow: 0 0 0 6px rgba(217,171,82,0.22); }
+  input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--accent-gold); border: none; cursor: pointer;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: linear-gradient(180deg, var(--accent-gold), #c2933e);
+    color: #1a1208;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 600;
+    font-size: 14.5px;
+    border: none;
+    padding: 13px 24px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+    box-shadow: 0 4px 14px rgba(217, 171, 82, 0.18);
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(217, 171, 82, 0.28); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn.secondary {
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+  .btn.secondary:hover { background: var(--bg-card-hover); box-shadow: inset 0 0 0 1px var(--accent-gold-dim); }
+  .btn-row { margin-top: 22px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+  /* ---------- Unknown words warning ---------- */
+  .oov-warning {
+    display: none;
+    margin-top: 16px;
+    background: rgba(217, 130, 90, 0.08);
+    border: 1px solid rgba(217, 130, 90, 0.35);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--warn);
+  }
+  .oov-warning.show { display: block; }
+  .oov-warning b { color: var(--text-primary); }
+  .oov-warning .oov-words { font-family: 'IBM Plex Mono', monospace; color: var(--text-secondary); }
+
+  /* ---------- Prediction rows ---------- */
+  .results { margin-top: 24px; display: flex; flex-direction: column; gap: 10px; }
+
+  .pred-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    transition: border-color 0.2s ease, background 0.2s ease;
+    opacity: 0;
+    transform: translateX(-6px);
+    animation: slideIn 0.35s ease forwards;
+  }
+  .pred-row.top { border-color: var(--accent-gold-dim); background: var(--bg-card-hover); }
+  @keyframes slideIn { to { opacity: 1; transform: translateX(0); } }
+
+  .pred-rank {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    width: 16px;
+  }
+  .pred-word {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 16.5px;
+    width: 130px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pred-bar-track {
+    flex: 1;
+    height: 8px;
+    background: var(--bg-input);
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+  }
+  .pred-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-gold-dim), var(--accent-gold));
+    border-radius: 999px;
+    width: 0%;
+    transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .pred-meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: right;
+    width: 128px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .pred-meta .pct { color: var(--accent-gold); font-size: 13px; font-weight: 500; }
+  .pred-meta .mult { font-size: 10.5px; }
+
+  .confidence-note {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .predict-note {
+    margin-top: 14px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--text-muted);
+  }
+  .predict-note code {
+    font-family: 'IBM Plex Mono', monospace;
+    background: var(--bg-card);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--text-secondary);
+  }
+
+  .sampled-word-card {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+    background: var(--bg-card);
+    border: 1px solid var(--accent-gold-dim);
+    border-radius: var(--radius-md);
+    padding: 22px 24px;
+    opacity: 0;
+    transform: translateY(4px);
+    animation: slideIn 0.35s ease forwards;
+  }
+  .sampled-word-card .sw-seed {
+    font-family: 'Fraunces', serif;
+    font-size: 17px;
+    color: var(--text-secondary);
+  }
+  .sampled-word-card .sw-word {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 30px;
+    color: var(--accent-gold);
+  }
+  .sampled-word-card .sw-meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: auto;
+    text-align: right;
+  }
+  .sampled-word-card .sw-meta .pct { color: var(--accent-gold); font-weight: 500; }
+
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+  .empty-state .glyph { font-size: 28px; margin-bottom: 10px; opacity: 0.5; }
+
+  /* ---------- Generator output ---------- */
+  .gen-output {
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 22px;
+    min-height: 90px;
+    font-family: 'Fraunces', serif;
+    font-size: 19px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+  }
+  .gen-output .seed { color: var(--text-primary); }
+  .gen-output .gen-word {
+    color: var(--accent-gold);
+    opacity: 0;
+    animation: wordIn 0.4s ease forwards;
+    cursor: default;
+    border-bottom: 1px dotted transparent;
+  }
+  .gen-output .gen-word:hover { border-bottom-color: var(--accent-gold-dim); }
+  @keyframes wordIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+  .gen-output .cursor-blink {
+    display: inline-block;
+    width: 2px; height: 20px;
+    background: var(--accent-gold);
+    margin-left: 2px;
+    vertical-align: middle;
+    animation: blink 0.9s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .progress-wrap { margin-top: 18px; }
+  .progress-track {
+    height: 6px;
+    background: var(--bg-input);
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent-ember), var(--accent-gold));
+    border-radius: 999px;
+    transition: width 0.25s ease;
+  }
+  .progress-meta {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 8px;
+  }
+  .progress-meta .pct { color: var(--accent-gold); }
+
+  /* step candidate tooltip strip */
+  .step-trace {
+    margin-top: 18px;
+    display: none;
+  }
+  .step-trace.show { display: block; }
+  .step-trace-label {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+  .step-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .step-chip {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    padding: 4px 9px;
+    border-radius: 999px;
+  }
+  .step-chip b { color: var(--accent-gold); font-weight: 500; }
+
+  /* ---------- History ---------- */
+  .history-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    font-size: 13.5px;
+    color: var(--text-secondary);
+  }
+  .history-item .hmeta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .history-item .htext { color: var(--text-primary); line-height: 1.5; }
+
+  /* ---------- Toast ---------- */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    color: var(--text-primary);
+    padding: 13px 20px;
+    border-radius: var(--radius-md);
+    font-size: 13.5px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 100;
+    max-width: 90%;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.danger { border-color: var(--danger); }
+
+  footer {
+    margin-top: 40px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  @media (max-width: 640px) {
+    .pred-word { width: 90px; font-size: 15px; }
+    .pred-meta { width: 90px; }
+    .wrap { padding: 32px 16px 72px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow"><span class="status-dot" id="statusDot"></span><span id="statusText">checking backend…</span></div>
+    <h1 class="title">What does a <em>2.2M-parameter</em> LSTM<br>actually predict?</h1>
+    <p class="lede">A next-word model trained from scratch on a 16GB laptop — Embedding(50) → LSTM(128) → Dense(12,000, softmax). No cherry-picked outputs. Every bar below is the model's real softmax probability.</p>
+    <div class="honesty-note">
+      <b>Heads up:</b> this model was trained on ~10,000 short sentences for 30 epochs — a small dataset for a 12,000-word vocabulary. Its raw next-word confidence is often only a few times better than random chance, and generated sequences will frequently be incoherent rather than grammatical. That's the model being honest about its own uncertainty, not a bug in this demo.
+      <p>
+        There are some points you should consider while generating the Word:
+<br>
+    <br>
+       1.The backend is deployed on the free tier of Render so it can take 30-60sec to generate the first text.
+    <br>
+    <br>
+       2.Changing the temperature value can change the result like low temperature (e.g 0.15,0.25) can generate the sequence grametically close but high temperature introuce the creativity so it can generate the creative words.
+    <br>
+    <br>
+       3. As I mentioned earlier that this LSTM model was trained on a very small dataset so do not comment "Kya faltu cheej bnai h" or something.Bcz i trained this model and it took me 4hrs to just pass 30epochs so just generate the text and chillll....
+    <br>
+    <br>
+    4. This WebPage will only show you how an LSTM output is generated by SOFTMAX and how Temperature can affect it.
+    </div>
+    <div class="specs">
+      <span class="spec-chip"><b>Vocab</b> 12,000 tokens</span>
+      <span class="spec-chip"><b>Sequence length</b> 65</span>
+      <span class="spec-chip"><b>Architecture</b> Embedding → LSTM → Dense</span>
+      <span class="spec-chip"><b>Baseline</b> random guess ≈ 0.0083%</span>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="predict">Next-Word Predictor</button>
+    <button class="tab-btn" data-tab="generate">Sequence Generator</button>
+  </div>
+
+  <!-- ============ PREDICT PANEL ============ -->
+  <div class="panel active" id="panel-predict">
+    <div class="card">
+      <label class="field-label" for="predictInput">Seed text</label>
+      <textarea id="predictInput" rows="2" placeholder="Type a phrase, e.g. &quot;i am feeling very&quot;">i am feeling very</textarea>
+
+      <div class="row">
+        <div class="control">
+          <div class="slider-label">Temperature <span class="val" id="tempVal1">0.80</span></div>
+          <input type="range" id="tempSlider1" min="0" max="2" step="0.05" value="0.8">
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="predictBtn">Predict next word</button>
+      </div>
+
+      <div class="predict-note">This samples one word from the model's full probability distribution — exactly like the notebook's <code>pred()</code>. Click again and you'll likely get a different word, even with the same seed and temperature; that's the model being genuinely probabilistic, not a bug.</div>
+
+      <div class="oov-warning" id="oovWarning1">
+        ⚠ <b>Unrecognized words:</b> <span class="oov-words" id="oovWords1"></span> — these weren't in the model's training vocabulary, so they were mapped to a generic &lt;OOV&gt; token. Predictions may be less meaningful when this happens.
+      </div>
+
+      <div class="results" id="predictResults">
+        <div class="empty-state">
+          <div class="glyph">◌</div>
+          Type something and hit predict — the model will sample one real next word for you.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ GENERATE PANEL ============ -->
+  <div class="panel" id="panel-generate">
+    <div class="card">
+      <label class="field-label" for="genInput">Seed text</label>
+      <textarea id="genInput" rows="2" placeholder="Type a starting phrase, e.g. &quot;my name is&quot;">my name is</textarea>
+
+      <div class="row">
+        <div class="control">
+          <div class="slider-label">Words to generate <span class="val" id="numWordsVal">15</span></div>
+          <input type="range" id="numWordsSlider" min="1" max="100" step="1" value="15">
+        </div>
+        <div class="control">
+          <div class="slider-label">Temperature <span class="val" id="tempVal2">0.80</span></div>
+          <input type="range" id="tempSlider2" min="0" max="2" step="0.05" value="0.8">
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="generateBtn">Generate sequence</button>
+        <button class="btn secondary" id="copyBtn">Copy text</button>
+        <button class="btn secondary" id="downloadBtn">Download .txt</button>
+      </div>
+
+      <div class="oov-warning" id="oovWarning2">
+        ⚠ <b>Unrecognized words in your seed:</b> <span class="oov-words" id="oovWords2"></span> — mapped to a generic &lt;OOV&gt; token, which usually makes the generated text noisier.
+      </div>
+
+      <div class="progress-wrap">
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-meta">
+          <span id="progressStepText">0 / 0 words</span>
+          <span class="pct" id="progressPctText">0%</span>
+        </div>
+      </div>
+
+      <div class="gen-output" id="genOutput" style="margin-top:18px;">
+        <span class="seed" id="genSeedDisplay">Your generated text will stream in here, word by word…</span>
+      </div>
+
+      <div class="step-trace" id="stepTrace">
+        <div class="step-trace-label">Candidates considered for the last word</div>
+        <div class="step-chips" id="stepChips"></div>
+      </div>
+    </div>
+
+    <div class="card" id="historyCard" style="display:none;">
+      <label class="field-label">Generation history (this session)</label>
+      <div id="historyList"></div>
+    </div>
+  </div>
+<div class="info-note">
+    Powered by Self Made LSTM Model · Deployed on Render · <a href="" style="color:#4a4663">GitHub</a>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ==========================================================================
+   CONFIG — point this at your local server or your deployed Render URL
+   ========================================================================== */
+const API_BASE = (function () {
+  // Auto-detect: use localhost while developing, otherwise expect the
+  // frontend to be told the backend URL via ?api=... or edit the default below.
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('api')) {
+    localStorage.setItem('lstm_api_base', params.get('api'));
+  }
+  return localStorage.getItem('lstm_api_base') || 'http://localhost:8000';
+})();
+
+document.getElementById('apiBaseDisplay').textContent = API_BASE;
+
+/* ==========================================================================
+   Helpers
+   ========================================================================== */
+const RANDOM_BASELINE = 1 / 12000; // uniform-guess probability, for context
+
+function fmtPct(p, decimals = 3) {
+  return (p * 100).toFixed(decimals) + '%';
+}
+
+function multiplierLabel(p) {
+  const mult = p / RANDOM_BASELINE;
+  if (mult < 1.05) return '≈ random chance';
+  return `≈ ${mult.toFixed(1)}× random chance`;
+}
+
+let toastTimer = null;
+function showToast(msg, danger = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.toggle('danger', danger);
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+function showOovWarning(warningEl, wordsEl, unknownWords) {
+  if (unknownWords && unknownWords.length > 0) {
+    wordsEl.textContent = unknownWords.join(', ');
+    warningEl.classList.add('show');
+  } else {
+    warningEl.classList.remove('show');
+  }
+}
+
+/* ==========================================================================
+   Backend health check
+   ========================================================================== */
+async function checkHealth(retry = false) {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  if (retry) { dot.className = 'status-dot warn'; text.textContent = 'waking up backend (Render free tier can take ~30–60s)…'; }
+  try {
+    const res = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(retry ? 60000 : 6000) });
+    if (!res.ok) throw new Error('bad status');
+    const data = await res.json();
+    dot.className = 'status-dot ok';
+    text.textContent = `backend online · vocab ${data.vocab_size} · maxlen ${data.maxlen}`;
+  } catch (e) {
+    if (!retry) {
+      checkHealth(true);
+    } else {
+      dot.className = 'status-dot bad';
+      text.textContent = 'backend unreachable — check API_BASE / that the server is running';
+    }
+  }
+}
+checkHealth();
+
+/* ==========================================================================
+   Tabs
+   ========================================================================== */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`panel-${btn.dataset.tab}`).classList.add('active');
+  });
+});
+
+/* ==========================================================================
+   Sliders — live value labels
+   ========================================================================== */
+function bindSlider(sliderId, labelId, decimals) {
+  const slider = document.getElementById(sliderId);
+  const label = document.getElementById(labelId);
+  const update = () => {
+    const v = parseFloat(slider.value);
+    label.textContent = decimals !== undefined ? v.toFixed(decimals) : v;
+  };
+  slider.addEventListener('input', update);
+  update();
+}
+bindSlider('tempSlider1', 'tempVal1', 2);
+bindSlider('numWordsSlider', 'numWordsVal');
+bindSlider('tempSlider2', 'tempVal2', 2);
+
+/* ==========================================================================
+   NEXT-WORD PREDICTOR
+   Mirrors the notebook's pred(): one word, weighted-random sampled from
+   the full temperature-scaled distribution. Not a ranked top-K — click
+   again and you'll likely get a different word, same as re-running pred()
+   in the notebook.
+   ========================================================================== */
+const predictBtn = document.getElementById('predictBtn');
+const predictResults = document.getElementById('predictResults');
+const oovWarning1 = document.getElementById('oovWarning1');
+const oovWords1 = document.getElementById('oovWords1');
+
+predictBtn.addEventListener('click', async () => {
+  const text = document.getElementById('predictInput').value.trim();
+  if (!text) { showToast('Type some seed text first.', true); return; }
+
+  const temperature = parseFloat(document.getElementById('tempSlider1').value);
+
+  predictBtn.disabled = true;
+  predictBtn.textContent = 'Predicting…';
+  predictResults.innerHTML = `<div class="empty-state"><div class="glyph">◌</div>Running inference…</div>`;
+  oovWarning1.classList.remove('show');
+
+  try {
+    const res = await fetch(`${API_BASE}/api/predict-next`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, temperature }),
+    });
+    if (!res.ok) throw new Error(`Server responded ${res.status}`);
+    const data = await res.json();
+    showOovWarning(oovWarning1, oovWords1, data.unknown_words);
+    renderSampledWord(text, data.word, data.probability);
+  } catch (err) {
+    predictResults.innerHTML = `<div class="empty-state">⚠ Couldn't reach the backend. ${err.message}</div>`;
+    showToast('Prediction failed — see panel for details.', true);
+  } finally {
+    predictBtn.disabled = false;
+    predictBtn.textContent = 'Predict next word';
+  }
+});
+
+function renderSampledWord(seedText, word, probability) {
+  const lowConfidence = probability < RANDOM_BASELINE * 10; // less than ~10x random chance
+  const note = lowConfidence
+    ? `<div class="confidence-note">Low confidence — this word's probability was only ${multiplierLabel(probability)}, so a re-click will often land on something completely different.</div>`
+    : '';
+  predictResults.innerHTML = `
+    <div class="sampled-word-card">
+      <span class="sw-seed">${escapeHtml(seedText)}</span>
+      <span class="sw-word">${escapeHtml(word)}</span>
+      <span class="sw-meta">
+        <span class="pct">${fmtPct(probability)}</span> probability<br>
+        <span>${multiplierLabel(probability)}</span>
+      </span>
+    </div>
+    ${note}
+  `;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/* ==========================================================================
+   SEQUENCE GENERATOR (streamed via SSE, real progress)
+   ========================================================================== */
+const generateBtn = document.getElementById('generateBtn');
+const genOutput = document.getElementById('genOutput');
+const progressFill = document.getElementById('progressFill');
+const progressStepText = document.getElementById('progressStepText');
+const progressPctText = document.getElementById('progressPctText');
+const stepTrace = document.getElementById('stepTrace');
+const stepChips = document.getElementById('stepChips');
+const oovWarning2 = document.getElementById('oovWarning2');
+const oovWords2 = document.getElementById('oovWords2');
+
+let currentEventSource = null;
+let lastGeneratedText = '';
+let sessionHistory = [];
+
+async function checkGenSeedVocab(seed) {
+  // Uses /api/predict-next purely for its unknown_words diagnostic before we
+  // kick off the stream, so the warning shows up before generation starts.
+  try {
+    const res = await fetch(`${API_BASE}/api/predict-next`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: seed, temperature: 0.8 }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    showOovWarning(oovWarning2, oovWords2, data.unknown_words);
+  } catch (e) {
+    // non-critical — silently skip the vocab warning if this pre-check fails
+  }
+}
+
+generateBtn.addEventListener('click', () => {
+  const seed = document.getElementById('genInput').value.trim();
+  if (!seed) { showToast('Type some seed text first.', true); return; }
+
+  const numWords = parseInt(document.getElementById('numWordsSlider').value);
+  const temperature = parseFloat(document.getElementById('tempSlider2').value);
+
+  if (currentEventSource) currentEventSource.close();
+
+  generateBtn.disabled = true;
+  generateBtn.textContent = 'Generating…';
+  progressFill.style.width = '0%';
+  progressStepText.textContent = `0 / ${numWords} words`;
+  progressPctText.textContent = '0%';
+  stepTrace.classList.remove('show');
+  oovWarning2.classList.remove('show');
+
+  checkGenSeedVocab(seed);
+
+  genOutput.innerHTML = `<span class="seed">${escapeHtml(seed)}</span><span class="cursor-blink"></span>`;
+
+  const url = `${API_BASE}/api/generate-stream?text=${encodeURIComponent(seed)}&num_words=${numWords}&temperature=${temperature}`;
+  const es = new EventSource(url);
+  currentEventSource = es;
+
+  es.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    // progress bar — driven by the real step count from the backend
+    progressFill.style.width = `${data.progress}%`;
+    progressStepText.textContent = `${data.step} / ${data.total} words`;
+    progressPctText.textContent = `${data.progress}%`;
+
+    // append the new word with a fade-in
+    const cursor = genOutput.querySelector('.cursor-blink');
+    const wordSpan = document.createElement('span');
+    wordSpan.className = 'gen-word';
+    wordSpan.textContent = ' ' + data.word;
+    wordSpan.title = `step ${data.step} · candidates: ` + data.top_k.map(c => `${c.word} (${fmtPct(c.probability)})`).join(', ');
+    genOutput.insertBefore(wordSpan, cursor);
+
+    lastGeneratedText = data.generated_text;
+
+    // show the live candidate trace for the most recent word
+    stepChips.innerHTML = data.top_k.map(c =>
+      `<span class="step-chip">${escapeHtml(c.word)} <b>${fmtPct(c.probability, 3)}</b></span>`
+    ).join('');
+    stepTrace.classList.add('show');
+  };
+
+  es.addEventListener('done', () => {
+    es.close();
+    currentEventSource = null;
+    generateBtn.disabled = false;
+    generateBtn.textContent = 'Generate sequence';
+    const cursor = genOutput.querySelector('.cursor-blink');
+    if (cursor) cursor.remove();
+
+    sessionHistory.unshift({
+      seed, numWords, temperature,
+      text: lastGeneratedText,
+      time: new Date().toLocaleTimeString(),
+    });
+    renderHistory();
+  });
+
+  es.onerror = () => {
+    es.close();
+    currentEventSource = null;
+    generateBtn.disabled = false;
+    generateBtn.textContent = 'Generate sequence';
+    const cursor = genOutput.querySelector('.cursor-blink');
+    if (cursor) cursor.remove();
+    if (progressFill.style.width === '0%') {
+      showToast('Could not connect to the generation stream — check the backend is running and reachable.', true);
+      genOutput.innerHTML = `<span class="seed">${escapeHtml(seed)}</span> <span style="color:var(--danger)">⚠ stream failed</span>`;
+    }
+  };
+});
+
+function renderHistory() {
+  const card = document.getElementById('historyCard');
+  const list = document.getElementById('historyList');
+  if (sessionHistory.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  list.innerHTML = sessionHistory.slice(0, 8).map(h => `
+    <div class="history-item">
+      <div class="hmeta"><span>${h.time} · ${h.numWords} words · temp ${h.temperature}</span></div>
+      <div class="htext">${escapeHtml(h.text)}</div>
+    </div>
+  `).join('');
+}
+
+/* ==========================================================================
+   Copy / download
+   ========================================================================== */
+document.getElementById('copyBtn').addEventListener('click', () => {
+  if (!lastGeneratedText) { showToast('Nothing generated yet.', true); return; }
+  navigator.clipboard.writeText(lastGeneratedText).then(() => showToast('Copied to clipboard.'));
+});
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  if (!lastGeneratedText) { showToast('Nothing generated yet.', true); return; }
+  const blob = new Blob([lastGeneratedText], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'lstm-generated.txt';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>
